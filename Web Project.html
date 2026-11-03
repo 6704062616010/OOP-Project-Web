@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Numerical Methods Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.2/math.min.js"></script>
+<style>
+:root{--bg:#f4f4f4;--card:#fff;--text:#111;--muted:#666;--line:#d0d0d0;--accent:#111;--accent2:#888;--ok:#111;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#000;--card:#0d0d0d;--text:#f2f2f2;--muted:#999;--line:#333;--accent:#f2f2f2;--accent2:#888;--ok:#f2f2f2;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#000;--card:#0d0d0d;--text:#f2f2f2;--muted:#999;--line:#333;--accent:#f2f2f2;--accent2:#888;--ok:#f2f2f2;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI",Tahoma,"Noto Sans Thai",sans-serif;line-height:1.5}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 24px;background:var(--card);border-bottom:1px solid var(--line)}
+header h1{font-size:1.15rem;margin:0}
+header small{color:var(--muted)}
+main{max-width:1200px;margin:0 auto;padding:20px;display:grid;gap:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+.stat b{display:block;font-size:1.6rem;color:var(--accent)}
+.stat span{color:var(--muted);font-size:.8rem}
+.layout{display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:16px;align-items:start}
+@media (max-width:820px){.layout{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+.card h2{font-size:1rem;margin:0 0 12px}
+label{display:block;font-size:.8rem;color:var(--muted);margin:10px 0 4px}
+select,input,textarea,button{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea{min-height:90px;font-family:Consolas,monospace;resize:vertical}
+button{background:var(--accent);color:var(--card);border:0;margin-top:16px;cursor:pointer;font-weight:600}
+button:hover{opacity:.9}
+.answer{padding:12px 14px;border-radius:8px;background:var(--bg);border:2px solid var(--text);color:var(--text);font-weight:600;margin-bottom:12px}
+.err{padding:12px 14px;border-radius:8px;background:var(--bg);border:2px dashed var(--text);color:var(--text);margin-bottom:12px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem;font-variant-numeric:tabular-nums}
+th,td{padding:6px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--card)}
+td:first-child,th:first-child{text-align:center}
+.tbl{max-height:320px;overflow:auto}
+canvas{width:100%;display:block;border-radius:8px}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;font-size:.82rem;margin:8px 0}
+.hint{color:var(--muted);font-size:.78rem;margin-top:4px}
+</style>
+</head>
+<body>
+<header><div><h1>Numerical Methods Calculator</h1><small>OOP project: abstract class + subclasses</small></div></header>
+<main>
+<section class="stats">
+<div class="stat"><b id="sSolved">0</b><span>PROBLEMS SOLVED</span></div>
+<div class="stat"><b id="sTime">0 ms</b><span>TOTAL EXECUTED TIME</span></div>
+<div class="stat"><b id="sIter">0</b><span>TOTAL ITERATIONS</span></div>
+</section>
+<section class="layout">
+<div class="card">
+<h2>Problem</h2>
+<label>Type of Problem</label><select id="type"></select>
+<label>Solution</label><select id="method"></select>
+<div id="fields"></div>
+<label>Precision (ทศนิยม)</label><input id="prec" type="number" min="1" max="12" value="6">
+<button id="run">คำนวณ</button>
+</div>
+<div style="display:grid;gap:16px;min-width:0">
+<div class="card" id="graphCard"><h2>Graph</h2><canvas id="cv" height="360"></canvas></div>
+<div class="card"><h2>วิธีทำ (Solution steps)</h2><div id="out"></div></div>
+</div>
+</section>
+<section class="card"><h2>5 Most recent solved problems</h2>
+<div class="scroll"><table><thead><tr><th>ID</th><th>Problem</th><th>Answer</th><th>Time</th><th>Iterations</th></tr></thead><tbody id="hist"></tbody></table></div>
+</section>
+</main>
+<script>
+const MAX_ITER=100;
+const N=s=>{const n=Number(math.evaluate(String(s)));if(!isFinite(n))throw new Error("ค่าตัวเลขไม่ถูกต้อง: "+s);return n;};
+const F=e=>{const c=math.compile(e);return x=>c.evaluate({x});};
+
+class Method{
+constructor(id,name,fields){this.id=id;this.name=name;this.fields=fields;}
+run(v){throw new Error("ต้อง implement run()");}
+}
+
+class RootMethod extends Method{
+constructor(id,name,fields,columns){
+super(id,name,[...fields,{id:"tol",label:"Tolerance (ε)",def:"0.000001"}]);
+this.columns=columns;
+}
+result(rows,xs,curves,range){
+const last=xs[xs.length-1];
+const lo=Math.min(...xs,...range),hi=Math.max(...xs,...range),pad=(hi-lo)*0.3+1;
+return{columns:this.columns,rows,answerKey:"x",answer:last,iterations:rows.length,curves,marks:xs.map(x=>({x,y:0})),range:[lo-pad,hi+pad]};
+}
+}
+
+class Bisection extends RootMethod{
+constructor(){super("bis","Bisection",[{id:"f",label:"f(x)",def:"x^3 - x - 2"},{id:"xl",label:"XL",def:"1"},{id:"xr",label:"XR",def:"2"}],["Iter","XL","XR","XM","f(XM)","Error"]);}
+run(v){
+const f=F(v.f),tol=N(v.tol);let xl=N(v.xl),xr=N(v.xr);
+if(f(xl)*f(xr)>0)throw new Error("f(XL) และ f(XR) ต้องมีเครื่องหมายต่างกัน");
+const rows=[],xs=[],a0=xl,b0=xr;let prev=null;
+for(let i=1;i<=MAX_ITER;i++){
+const xm=(xl+xr)/2,fm=f(xm),err=prev===null?null:Math.abs(xm-prev);
+rows.push([i,xl,xr,xm,fm,err]);xs.push(xm);
+if(fm===0||(err!==null&&err<tol))break;
+if(f(xl)*fm<0)xr=xm;else xl=xm;
+prev=xm;
+}
+return this.result(rows,xs,[{fn:f}],[a0,b0]);
+}
+}
+
+class FalsePosition extends RootMethod{
+constructor(){super("fp","False Position",[{id:"f",label:"f(x)",def:"x^3 - x - 2"},{id:"xl",label:"XL",def:"1"},{id:"xr",label:"XR",def:"2"}],["Iter","XL","XR","X1","f(X1)","Error"]);}
+run(v){
+const f=F(v.f),tol=N(v.tol);let xl=N(v.xl),xr=N(v.xr);
+if(f(xl)*f(xr)>0)throw new Error("f(XL) และ f(XR) ต้องมีเครื่องหมายต่างกัน");
+const rows=[],xs=[],a0=xl,b0=xr;let prev=null;
+for(let i=1;i<=MAX_ITER;i++){
+const x1=(xl*f(xr)-xr*f(xl))/(f(xr)-f(xl)),f1=f(x1),err=prev===null?null:Math.abs(x1-prev);
+rows.push([i,xl,xr,x1,f1,err]);xs.push(x1);
+if(f1===0||(err!==null&&err<tol))break;
+if(f(xl)*f1<0)xr=x1;else xl=x1;
+prev=x1;
+}
+return this.result(rows,xs,[{fn:f}],[a0,b0]);
+}
+}
+
+class Newton extends RootMethod{
+constructor(){super("nr","Newton-Raphson",[{id:"f",label:"f(x)",def:"x^2 - 7"},{id:"x0",label:"X0",def:"2"}],["Iter","Xi","f(Xi)","f'(Xi)","Error"]);}
+run(v){
+const f=F(v.f),d=math.derivative(v.f,"x").compile(),tol=N(v.tol);let x=N(v.x0);
+const rows=[],xs=[x],x0=x;
+for(let i=1;i<=MAX_ITER;i++){
+const fx=f(x),dx=d.evaluate({x});
+if(dx===0)throw new Error("f'(x) = 0 ไม่สามารถคำนวณต่อได้");
+const nx=x-fx/dx,err=Math.abs(nx-x);
+rows.push([i,x,fx,dx,err]);x=nx;xs.push(x);
+if(err<tol)break;
+}
+return this.result(rows,xs,[{fn:f}],[x0,x]);
+}
+}
+
+class Secant extends RootMethod{
+constructor(){super("sec","Secant",[{id:"f",label:"f(x)",def:"x^2 - 7"},{id:"x0",label:"X0",def:"1"},{id:"x1",label:"X1",def:"3"}],["Iter","Xi-1","Xi","Xi+1","Error"]);}
+run(v){
+const f=F(v.f),tol=N(v.tol);let a=N(v.x0),b=N(v.x1);
+const rows=[],xs=[a,b],r0=[a,b];
+for(let i=1;i<=MAX_ITER;i++){
+if(f(b)===f(a))throw new Error("f(Xi) = f(Xi-1) หารด้วยศูนย์");
+const c=b-f(b)*(b-a)/(f(b)-f(a)),err=Math.abs(c-b);
+rows.push([i,a,b,c,err]);xs.push(c);a=b;b=c;
+if(err<tol)break;
+}
+return this.result(rows,xs,[{fn:f}],r0);
+}
+}
+
+class FixedPoint extends RootMethod{
+constructor(){super("fx","One-Point Iteration",[{id:"g",label:"g(x)  (x = g(x))",def:"(x + 7/x)/2"},{id:"x0",label:"X0",def:"2"}],["Iter","Xi","g(Xi)","Error"]);}
+run(v){
+const g=F(v.g),tol=N(v.tol);let x=N(v.x0);
+const rows=[],xs=[x],x0=x;
+for(let i=1;i<=MAX_ITER;i++){
+const nx=g(x),err=Math.abs(nx-x);
+if(!isFinite(nx))throw new Error("ค่าลู่ออก (diverge)");
+rows.push([i,x,nx,err]);x=nx;xs.push(x);
+if(err<tol)break;
+}
+const r=this.result(rows,xs,[{fn:g},{fn:t=>t,color:"#888"}],[x0,x]);
+r.marks=xs.map(t=>({x:t,y:g(t)}));
+return r;
+}
+}
+
+class Integration extends Method{
+constructor(id,name){super(id,name,[{id:"f",label:"f(x)",def:"x^2"},{id:"a",label:"a",def:"0"},{id:"b",label:"b",def:"2"},{id:"n",label:"n (จำนวนช่วง)",def:"4"}]);}
+weight(i,n){throw new Error("abstract");}
+factor(h){throw new Error("abstract");}
+run(v){
+const f=F(v.f),a=N(v.a),b=N(v.b),n=N(v.n);
+if(!Number.isInteger(n)||n<1)throw new Error("n ต้องเป็นจำนวนเต็มบวก");
+this.check(n);
+const h=(b-a)/n,rows=[];let sum=0;
+for(let i=0;i<=n;i++){const x=a+i*h,fx=f(x),w=this.weight(i,n);sum+=w*fx;rows.push([i,x,fx,w,w*fx]);}
+const area=this.factor(h)*sum;
+return{columns:["i","xi","f(xi)","weight","weight × f(xi)"],rows,answerKey:"I",answer:area,iterations:n,notes:["h = (b - a)/n = "+h,"I = "+this.formula],curves:[{fn:f}],marks:rows.map(r=>({x:r[1],y:r[2]})),range:[a-(b-a)*0.2,b+(b-a)*0.2],shade:[a,b]};
+}
+check(){}
+}
+
+class Trapezoid extends Integration{
+constructor(){super("trap","Composite Trapezoidal");this.formula="(h/2)·[f(x0) + 2Σf(xi) + f(xn)]";}
+weight(i,n){return i===0||i===n?1:2;}
+factor(h){return h/2;}
+}
+
+class Simpson extends Integration{
+constructor(){super("simp","Composite Simpson 1/3");this.formula="(h/3)·[f(x0) + 4Σf(odd) + 2Σf(even) + f(xn)]";}
+check(n){if(n%2)throw new Error("Simpson ต้องใช้ n เป็นเลขคู่");}
+weight(i,n){return i===0||i===n?1:(i%2?4:2);}
+factor(h){return h/3;}
+}
+
+class Lagrange extends Method{
+constructor(){super("lag","Lagrange Interpolation",[{id:"pts",label:"จุดข้อมูล (x,y) บรรทัดละ 1 จุด",def:"0,1\n1,3\n2,2\n3,5",area:true},{id:"x",label:"x ที่ต้องการหาค่า",def:"1.5"}]);}
+parse(s){const p=s.trim().split(/\n+/).map(l=>l.split(/[,\s]+/).map(N));if(p.length<2||p.some(r=>r.length!==2))throw new Error("รูปแบบจุดไม่ถูกต้อง");return p;}
+run(v){
+const p=this.parse(v.pts),x=N(v.x);
+const L=(t,i)=>p.reduce((acc,q,j)=>j===i?acc:acc*(t-q[0])/(p[i][0]-q[0]),1);
+const P=t=>p.reduce((s,q,i)=>s+q[1]*L(t,i),0);
+const rows=p.map((q,i)=>[i,q[0],q[1],L(x,i),q[1]*L(x,i)]);
+const xs=p.map(q=>q[0]),lo=Math.min(...xs,x),hi=Math.max(...xs,x),pad=(hi-lo)*0.15||1;
+return{columns:["i","xi","yi","Li(x)","yi·Li(x)"],rows,answerKey:"f("+x+")",answer:P(x),iterations:p.length,notes:["P(x) = Σ yi·Li(x),   Li(x) = Π (x - xj)/(xi - xj)"],curves:[{fn:P}],marks:[...p.map(q=>({x:q[0],y:q[1]})),{x,y:P(x),hl:true}],range:[lo-pad,hi+pad]};
+}
+}
+
+class Gauss extends Method{
+constructor(){super("gauss","Gauss Elimination",[{id:"m",label:"Augmented matrix [A|b] บรรทัดละ 1 แถว",def:"2 1 -1 8\n-3 -1 2 -11\n-2 1 2 -3",area:true}]);}
+run(v){
+const A=v.m.trim().split(/\n+/).map(l=>l.trim().split(/[,\s]+/).map(N)),n=A.length;
+if(A.some(r=>r.length!==n+1))throw new Error("ต้องเป็นเมทริกซ์ n × (n+1)");
+const show=M=>M.map(r=>r.map(x=>x.toFixed(4).padStart(10)).join("")).join("\n");
+const notes=["เมทริกซ์เริ่มต้น\n"+show(A)];
+for(let k=0;k<n;k++){
+let p=k;
+for(let i=k+1;i<n;i++)if(Math.abs(A[i][k])>Math.abs(A[p][k]))p=i;
+if(Math.abs(A[p][k])<1e-12)throw new Error("เมทริกซ์เอกฐาน (singular)");
+if(p!==k){[A[p],A[k]]=[A[k],A[p]];notes.push("สลับแถว R"+(k+1)+" ↔ R"+(p+1));}
+for(let i=k+1;i<n;i++){
+const m=A[i][k]/A[k][k];
+for(let j=k;j<=n;j++)A[i][j]-=m*A[k][j];
+notes.push("R"+(i+1)+" = R"+(i+1)+" - ("+m.toFixed(4)+")·R"+(k+1)+"\n"+show(A));
+}
+}
+const x=Array(n).fill(0);
+for(let i=n-1;i>=0;i--){
+let s=A[i][n];
+for(let j=i+1;j<n;j++)s-=A[i][j]*x[j];
+x[i]=s/A[i][i];
+notes.push("x"+(i+1)+" = "+x[i].toFixed(6));
+}
+return{columns:["ตัวแปร","ค่า"],rows:x.map((val,i)=>["x"+(i+1),val]),answerKey:"X",answer:x,iterations:n,notes,noPlot:true};
+}
+}
+
+class Plotter{
+constructor(canvas){this.cv=canvas;this.ctx=canvas.getContext("2d");}
+css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+draw(r){
+const cv=this.cv,ctx=this.ctx,dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=360;
+cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+const[x0,x1]=r.range,S=400,ys=[];
+const lines=r.curves.map(c=>{
+const pts=[];
+for(let i=0;i<=S;i++){
+const x=x0+(x1-x0)*i/S;let y;
+try{y=c.fn(x);}catch{y=NaN;}
+pts.push([x,y]);
+if(isFinite(y))ys.push(y);
+}
+return{pts,color:c.color};
+});
+(r.marks||[]).forEach(m=>ys.push(m.y));ys.push(0);
+ys.sort((a,b)=>a-b);
+let y0=ys[Math.floor(ys.length*0.02)],y1=ys[Math.ceil(ys.length*0.98)-1];
+if(y0===y1){y0-=1;y1+=1;}
+const py=(y1-y0)*0.1;y0-=py;y1+=py;
+const m={l:44,r:12,t:12,b:28},X=x=>m.l+(x-x0)/(x1-x0)*(W-m.l-m.r),Y=y=>H-m.b-(y-y0)/(y1-y0)*(H-m.t-m.b);
+const line=this.css("--line"),muted=this.css("--muted"),acc=this.css("--accent"),acc2=this.css("--accent2");
+ctx.font="11px sans-serif";ctx.fillStyle=muted;ctx.strokeStyle=line;ctx.lineWidth=1;
+for(let i=0;i<=8;i++){
+const gx=x0+(x1-x0)*i/8,gy=y0+(y1-y0)*i/8;
+ctx.beginPath();ctx.moveTo(X(gx),m.t);ctx.lineTo(X(gx),H-m.b);ctx.moveTo(m.l,Y(gy));ctx.lineTo(W-m.r,Y(gy));ctx.stroke();
+ctx.textAlign="center";ctx.fillText(+gx.toFixed(2),X(gx),H-10);
+ctx.textAlign="right";ctx.fillText(+gy.toFixed(2),m.l-5,Y(gy)+4);
+}
+ctx.strokeStyle=muted;ctx.lineWidth=1.5;ctx.beginPath();
+if(y0<0&&y1>0){ctx.moveTo(m.l,Y(0));ctx.lineTo(W-m.r,Y(0));}
+if(x0<0&&x1>0){ctx.moveTo(X(0),m.t);ctx.lineTo(X(0),H-m.b);}
+ctx.stroke();
+ctx.save();ctx.beginPath();ctx.rect(m.l,m.t,W-m.l-m.r,H-m.t-m.b);ctx.clip();
+if(r.shade){
+ctx.globalAlpha=0.15;ctx.fillStyle=acc;ctx.beginPath();ctx.moveTo(X(r.shade[0]),Y(0));
+lines[0].pts.forEach(([x,y])=>{if(x>=r.shade[0]&&x<=r.shade[1]&&isFinite(y))ctx.lineTo(X(x),Y(y));});
+ctx.lineTo(X(r.shade[1]),Y(0));ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+}
+lines.forEach((l,k)=>{
+ctx.strokeStyle=l.color||(k?acc2:acc);ctx.lineWidth=2;ctx.beginPath();let pen=false;
+l.pts.forEach(([x,y])=>{
+if(!isFinite(y)||y<y0-5*(y1-y0)||y>y1+5*(y1-y0)){pen=false;return;}
+pen?ctx.lineTo(X(x),Y(y)):ctx.moveTo(X(x),Y(y));pen=true;
+});
+ctx.stroke();
+});
+(r.marks||[]).forEach((p,i,a)=>{
+ctx.fillStyle=p.hl||i===a.length-1?acc2:acc;ctx.beginPath();
+ctx.arc(X(p.x),Y(p.y),p.hl||i===a.length-1?5:3.5,0,7);ctx.fill();
+});
+ctx.restore();
+}
+}
+
+class App{
+constructor(){
+this.groups={
+"Root of Equations":[new Bisection(),new FalsePosition(),new Newton(),new Secant(),new FixedPoint()],
+"Integration":[new Trapezoid(),new Simpson()],
+"Interpolation":[new Lagrange()],
+"Linear Algebra":[new Gauss()]
+};
+this.stat={solved:0,time:0,iter:0};this.hist=[];this.last=null;
+this.$=id=>document.getElementById(id);
+this.plot=new Plotter(this.$("cv"));
+this.$("type").innerHTML=Object.keys(this.groups).map(k=>"<option>"+k+"</option>").join("");
+this.$("type").onchange=()=>this.loadMethods();
+this.$("method").onchange=()=>this.loadFields();
+this.$("run").onclick=()=>this.solve();
+window.addEventListener("resize",()=>this.last&&!this.last.noPlot&&this.plot.draw(this.last));
+this.loadMethods();
+}
+current(){return this.groups[this.$("type").value][this.$("method").selectedIndex];}
+loadMethods(){this.$("method").innerHTML=this.groups[this.$("type").value].map(m=>"<option>"+m.name+"</option>").join("");this.loadFields();}
+loadFields(){
+this.$("fields").innerHTML=this.current().fields.map(f=>"<label>"+f.label+"</label>"+(f.area?'<textarea id="f_'+f.id+'">'+f.def+"</textarea>":'<input id="f_'+f.id+'" value="'+f.def+'">')).join("");
+}
+fmt(v,p,first){return typeof v!=="number"?(v===null?"-":v):(first&&Number.isInteger(v)?v:v.toFixed(p));}
+solve(){
+const out=this.$("out"),m=this.current(),p=Math.min(12,Math.max(1,parseInt(this.$("prec").value)||6));
+const v={};m.fields.forEach(f=>v[f.id]=this.$("f_"+f.id).value);
+try{
+const t0=performance.now(),r=m.run(v),dt=performance.now()-t0;
+this.last=r;
+const ans=Array.isArray(r.answer)?r.answer.map((x,i)=>"x"+(i+1)+" = "+x.toFixed(p)).join(",  "):r.answerKey+" ≈ "+r.answer.toFixed(p);
+let h='<div class="answer">'+ans+"</div>";
+(r.notes||[]).forEach(n=>h+="<pre>"+n+"</pre>");
+h+='<div class="scroll tbl"><table><thead><tr>'+r.columns.map(c=>"<th>"+c+"</th>").join("")+"</tr></thead><tbody>"+r.rows.map(row=>"<tr>"+row.map((c,i)=>"<td>"+this.fmt(c,p,i===0)+"</td>").join("")+"</tr>").join("")+"</tbody></table></div>";
+out.innerHTML=h;
+this.$("graphCard").style.display=r.noPlot?"none":"";
+if(!r.noPlot)this.plot.draw(r);
+this.record(m,ans,dt,r.iterations);
+}catch(e){out.innerHTML='<div class="err">'+e.message+"</div>";}
+}
+record(m,ans,dt,it){
+this.stat.solved++;this.stat.time+=dt;this.stat.iter+=it;
+this.hist.unshift({id:this.stat.solved,name:m.name,ans,dt,it});this.hist=this.hist.slice(0,5);
+this.$("sSolved").textContent=this.stat.solved;
+this.$("sTime").textContent=this.stat.time.toFixed(1)+" ms";
+this.$("sIter").textContent=this.stat.iter;
+this.$("hist").innerHTML=this.hist.map(h=>"<tr><td>"+h.id+"</td><td style='text-align:left'>"+h.name+"</td><td style='text-align:left'>"+h.ans+"</td><td>"+h.dt.toFixed(1)+" ms</td><td>"+h.it+"</td></tr>").join("");
+}
+}
+new App().solve();
+</script>
+</body>
+</html>
